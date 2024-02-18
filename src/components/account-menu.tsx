@@ -2,13 +2,17 @@ import { Building, ChevronDown, LogOut } from "lucide-react";
 import { Button } from "./ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuTrigger } from "./ui/dropdown-menu";
 import { getProfile } from "@/api/get-profile";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery } from "@tanstack/react-query";
 import { getManagedRestaurant } from "@/api/get-managed-restaurant";
 import { Skeleton } from "./ui/skeleton";
 import { Dialog, DialogTrigger } from "./ui/dialog";
 import { StoreProfileDialog } from "./store-profile-dialog";
+import signOut from "@/api/sign-out";
+import { useNavigate } from "react-router-dom";
 
 export function AccountMenu() {
+
+    const navigate = useNavigate()
 
     const { data: profile, isLoading: isLoadingProfile } = useQuery({
         queryKey: ["profile"],
@@ -19,6 +23,14 @@ export function AccountMenu() {
         queryKey: ["managed-restaurant"],
         queryFn: getManagedRestaurant,
         staleTime: Infinity
+    })
+
+
+    const { mutateAsync: signOutFn, isPending: isSigningOut } = useMutation({
+        mutationFn: signOut,
+        onSuccess: () => {
+            navigate("/sign-in", { replace: true })
+        }
     })
 
 
@@ -54,15 +66,16 @@ export function AccountMenu() {
 
                     <DialogTrigger asChild>
                         <DropdownMenuItem className="gap-2">
-
                             <Building className="h-4 w-4" />
                             Perfil da loja
                         </DropdownMenuItem>
                     </DialogTrigger>
 
-                    <DropdownMenuItem className="gap-2 text-red-500 dark:text-red-400">
-                        <LogOut className="h-4 w-4" />
-                        Sair
+                    <DropdownMenuItem asChild className="gap-2 text-red-500 dark:text-red-400" disabled={isSigningOut}>
+                        <button className="w-full" onClick={() => signOutFn()}>
+                            <LogOut className="h-4 w-4" />
+                            Sair
+                        </button>
                     </DropdownMenuItem>
                 </DropdownMenuContent >
             </DropdownMenu >

@@ -1,46 +1,139 @@
+import { OrderStatus } from "@/components/order-status";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogTrigger } from "@/components/ui/dialog";
 import { TableCell, TableRow } from "@/components/ui/table";
 import { ArrowRight, Search, X } from "lucide-react";
 
-export function OrderTableRow() {
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { ProductDetail } from "./product-detail";
+import { useState } from "react";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { GetOrdersResponse } from "@/api/get-orders";
+import { changeOrderStatus } from "@/api/change-order-status";
+
+export interface OrderTableRowProps {
+    order: {
+        orderId: string
+        status: "pending" | "canceled" | "processing" | "delivering" | "delivered";
+        createdAt: string
+        customerName: string
+        total: number
+    }
+}
+
+export function OrderTableRow({ order }: OrderTableRowProps) {
+    const [isDetailsOpen, setIsDetailsOpen] = useState(false)
+
+
+    const queryClient = useQueryClient()
+
+    function updateOrderOnCache(orderId: string, status: OrderStatus) {
+        const cached = queryClient.getQueriesData<GetOrdersResponse>({
+            queryKey: ['orders']
+        })
+
+        cached?.forEach(([cacheKey, cacheData]) => {
+            if (!cacheData) {
+                return
+            }
+
+            queryClient.setQueryData<GetOrdersResponse>(cacheKey, {
+                ...cacheData,
+                orders: cacheData.orders.map((order) => {
+                    if (order.orderId === orderId) {
+                        return { ...order, status }
+                    }
+
+                    return order
+                })
+            })
+        })
+    }
+
+
+    const { mutateAsync: changeOrderStatusFn, isPending: isChanging  } = useMutation({
+        mutationFn: changeOrderStatus,
+        onSuccess: (_, { orderId, status }, __) => {
+            updateOrderOnCache(orderId, status)
+        }
+    })
+
+
+
     return (
         <>
             <TableRow>
                 <TableCell>
-                    <Dialog>
+                    <Dialog open={isDetailsOpen} onOpenChange={setIsDetailsOpen}>
                         <DialogTrigger asChild>
                             <Button variant="outline" size="xs">
                                 <Search className="h-3 w-3" />
                                 <span className="sr-only">Detalhes do pedido</span>
                             </Button>
                         </DialogTrigger>
+
+                        <ProductDetail id={order.orderId} isOpen={isDetailsOpen} />
                     </Dialog>
                 </TableCell>
-                <TableCell className="font-mono text-sm font-medium">66d0830f58be46a0a3d6a0d350e9bbaf</TableCell>
-                <TableCell>15 minutos</TableCell>
+                <TableCell className="font-mono text-sm font-medium">{order.orderId}</TableCell>
+                <TableCell>{formatDistanceToNow(order.createdAt, { locale: ptBR, addSuffix: true })}</TableCell>
                 <TableCell>
-                    <div className="flex items-center gap-2">
-                        <span className="h-2 w-2 rounded-full bg-slate-500" />
-                        <span className="">Pendente</span>
-                    </div>
+                    <OrderStatus status={order.status} />
                 </TableCell>
-                <TableCell className="font-medium">João da Silva</TableCell>
-                <TableCell>R$ 150,00</TableCell>
+                <TableCell className="font-medium">{order.customerName}</TableCell>
+                <TableCell className="font-medium">
+                    {order.total.toLocaleString("pt-BR", { currency: "BRL", style: "currency" })}
+                </TableCell>
 
                 <TableCell>
                     <div className="flex gap-4">
-                        <Button variant="outline" size="xs">
-                            <ArrowRight className="h-3 w-3 mr-2" />
-                            Aprovar
-                        </Button>
-                        <Button variant="outline" size="xs">
-                            <X className="h-3 w-3 mr-2" />
-                            Cancelar
-                        </Button>
+                        {order.status === 'pending' && (
+                            <Button
+                                variant="outline"
+                                disabled={isChanging}
+                                size="xs"
+                                onClick={() => changeOrderStatusFn({ orderId: order.orderId, status: "processing"})}
+                            >
+                                <ArrowRight className="mr-2 h-3 w-3" />
+                                Aprovar
+                            </Button>
+                        )}
+
+                        {order.status === 'processing' && (
+                            <Button
+                                variant="outline"
+                                disabled={isChanging}
+                                size="xs"
+                                onClick={() => changeOrderStatusFn({ orderId: order.orderId, status: "delivering"})}
+                            >
+                                <ArrowRight className="mr-2 h-3 w-3" />
+                                Em entrega
+                            </Button>
+                        )}
+
+                        {order.status === 'delivering' && (
+                            <Button
+                                variant="outline"
+                                disabled={isChanging}
+                                size="xs"
+                                onClick={() => changeOrderStatusFn({ orderId: order.orderId, status: "delivered"})}
+                            >
+                                <ArrowRight className="mr-2 h-3 w-3" />
+                                Entregue
+                            </Button>
+                        )}
                     </div>
-                </TableCell>
-            </TableRow>
+                    <Button
+                        onClick={() => changeOrderStatus({ orderId: order.orderId, status: "canceled" })}
+                        disabled={!["pending", "processing"].includes(order.status)}
+                        variant="outline"
+                        size="xs">
+                        <X className="h-3 w-3 mr-2" />
+                        Cancelar
+                    </Button>
+                </TableCell >
+            </TableRow >
         </>
     )
 }

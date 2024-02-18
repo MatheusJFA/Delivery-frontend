@@ -1,7 +1,7 @@
-import { useMutation, useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "./ui/button";
 import { DialogContent, DialogTitle, DialogDescription, DialogHeader, DialogFooter, DialogClose } from "./ui/dialog";
-import { getManagedRestaurant } from "@/api/get-managed-restaurant";
+import { GetManagedRestaurantResponse, getManagedRestaurant } from "@/api/get-managed-restaurant";
 import * as zod from "zod";
 import { useForm } from "react-hook-form";
 
@@ -14,9 +14,11 @@ import { toast } from "sonner";
 
 export function StoreProfileDialog() {
 
+    const queryClient = useQueryClient();
+
     const StoreProfileSchema = zod.object({
         name: zod.string().min(1, "Nome da loja é obrigatório"),
-        description: zod.string().min(1, "Descrição da loja é obrigatória"),
+        description: zod.string().min(1, "Descrição da loja é obrigatória").nullable(),
     })
 
     type StoreProfileInputs = zod.infer<typeof StoreProfileSchema>
@@ -35,8 +37,32 @@ export function StoreProfileDialog() {
         }
     })
 
+    function updateRestaurantInformationCache({ name, description }: StoreProfileInputs) {
+        const cached = queryClient.getQueryData<GetManagedRestaurantResponse>(["managed-restaurant"]);
+
+        if (cached) {
+            queryClient.setQueryData<GetManagedRestaurantResponse>(["managed-restaurant"], {
+                ...cached,
+                name,
+                description
+            })
+        }
+
+        return { cached }
+    }
+
     const { mutateAsync: updateProfileFn } = useMutation({
-        mutationFn: updateProfile
+        mutationFn: updateProfile,
+        onMutate: ({ name, description }) => {
+            const { cached }= updateRestaurantInformationCache({ name, description })
+
+            return { previousValue: cached }
+        },
+        onError: (_, __, context) => {
+            if(context?.previousValue) {
+                queryClient.setQueryData(["managed-restaurant"], context.previousValue)
+            }
+        }
     })
 
     async function handleUpdateProfile(data: StoreProfileInputs) {

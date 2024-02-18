@@ -1,92 +1,108 @@
+import { getOrderByID } from "@/api/get-order.by-id";
+import { OrderStatus } from "@/components/order-status";
 import { DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { useQuery } from "@tanstack/react-query";
+import { formatDistanceToNow } from "date-fns";
+import { ptBR } from "date-fns/locale";
+import { ProductDetailSkeleton } from "./product-detail-skeleton";
 
 export interface ProductDetailProps {
-    id: string;
+  id: string;
+  isOpen: boolean;
 }
 
-export function ProductDetail() {
-    return (
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Pedido: 1827fy2827d6h</DialogTitle>
-            <DialogDescription>Detalhes do pedido</DialogDescription>
-          </DialogHeader>
-    
-          <div className="space-y-6">
-            <Table>
-              <TableBody>
+export function ProductDetail({ id, isOpen }: ProductDetailProps) {
+
+  const { data: order, isLoading } = useQuery({
+    queryKey: ['order', id],
+    queryFn: () => getOrderByID({ id }),
+    enabled: isOpen
+  })
+
+
+  const formatCurrency = (value: number) => {
+    return value.toLocaleString("pt-BR", { currency: "BRL", style: "currency" })
+  }
+
+  const total = order?.orderItems.reduce((acc, item) => acc + (item.priceInCents * item.quantity), 0)
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Pedido: {id} </DialogTitle>
+        <DialogDescription>Detalhes do pedido</DialogDescription>
+      </DialogHeader>
+      {isLoading && <ProductDetailSkeleton />}
+      {order && (
+        <div className="space-y-6">
+          <Table>
+            <TableBody>
+              <TableRow>
+                <TableCell className="text-muted-foreground">Status</TableCell>
+                <TableCell className="flex justify-end">
+                  <OrderStatus status={order.status} />
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="text-muted-foreground">Cliente</TableCell>
+                <TableCell className="flex justify-end">
+                  {order.customer.name}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="text-muted-foreground">Telefone</TableCell>
+                <TableCell className="flex justify-end">
+                  {order.customer.phone}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="text-muted-foreground">E-mail</TableCell>
+                <TableCell className="flex justify-end">
+                  {order.customer.email}
+                </TableCell>
+              </TableRow>
+              <TableRow>
+                <TableCell className="text-muted-foreground">
+                  Realizado há
+                </TableCell>
+                <TableCell className="flex justify-end">{formatDistanceToNow(order.createdAt, { addSuffix: true, locale: ptBR })}</TableCell>
+              </TableRow>
+            </TableBody>
+          </Table>
+
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Produto</TableHead>
+                <TableHead className="text-right">Qtd.</TableHead>
+                <TableHead className="text-right">Preço</TableHead>
+                <TableHead className="text-right">Subtotal</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {order.orderItems && order.orderItems.map(item => (
                 <TableRow>
-                  <TableCell className="text-muted-foreground">Status</TableCell>
-                  <TableCell className="flex justify-end">
-                    <div className="flex items-center gap-2">
-                      <span className="h-2 w-2 rounded-full bg-slate-400" />
-                      <span className="font-medium text-muted-foreground">
-                        Pendente
-                      </span>
-                    </div>
-                  </TableCell>
+                  <TableCell>{item.product.name}</TableCell>
+                  <TableCell className="text-right">{item.quantity}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(item.priceInCents)}</TableCell>
+                  <TableCell className="text-right">{formatCurrency(item.priceInCents * item.quantity)}</TableCell>
                 </TableRow>
-                <TableRow>
-                  <TableCell className="text-muted-foreground">Cliente</TableCell>
-                  <TableCell className="flex justify-end">
-                    Diego Schell Fernandes
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="text-muted-foreground">Telefone</TableCell>
-                  <TableCell className="flex justify-end">
-                    (47) 99999-9999
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="text-muted-foreground">E-mail</TableCell>
-                  <TableCell className="flex justify-end">
-                    diego@rocketseat.com.br
-                  </TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell className="text-muted-foreground">
-                    Realizado há
-                  </TableCell>
-                  <TableCell className="flex justify-end">há 3 minutos</TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-    
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Produto</TableHead>
-                  <TableHead className="text-right">Qtd.</TableHead>
-                  <TableHead className="text-right">Preço</TableHead>
-                  <TableHead className="text-right">Subtotal</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell>Pizza Pepperoni Família</TableCell>
-                  <TableCell className="text-right">2</TableCell>
-                  <TableCell className="text-right">R$ 69,90</TableCell>
-                  <TableCell className="text-right">R$ 139,80</TableCell>
-                </TableRow>
-                <TableRow>
-                  <TableCell>Pizza Mussarela Família</TableCell>
-                  <TableCell className="text-right">2</TableCell>
-                  <TableCell className="text-right">R$ 59,90</TableCell>
-                  <TableCell className="text-right">R$ 119,80</TableCell>
-                </TableRow>
-              </TableBody>
-              <TableFooter>
-                <TableRow>
-                  <TableCell colSpan={3}>Total do pedido</TableCell>
-                  <TableCell className="text-right font-medium">
-                    R$ 259,60
-                  </TableCell>
-                </TableRow>
-              </TableFooter>
-            </Table>
-          </div>
-        </DialogContent>
+              ))}
+
+            </TableBody>
+            <TableFooter>
+              <TableRow>
+                <TableCell colSpan={3}>Total do pedido</TableCell>
+                <TableCell className="text-right font-medium">
+                  {total && formatCurrency(total)}
+                </TableCell>
+              </TableRow>
+            </TableFooter>
+          </Table>
+        </div>
       )
+      }
+    </DialogContent>
+  )
 }
